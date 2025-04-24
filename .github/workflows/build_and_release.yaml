@@ -23,7 +23,7 @@ jobs:
       run: New-Item -ItemType Directory -Path .\output
 
     - name: Compile 64bit Binary
-      run: gcc .\src\main.c -o .\output\<output_executable_name>.exe -s -m64
+      run: gcc .\src\main.c -o .\output\sniff_icmp_x64.exe -s -m64
 
     - name: Read Version
       run: |
