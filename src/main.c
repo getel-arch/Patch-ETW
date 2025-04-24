@@ -37,32 +37,61 @@ int main() {
     struct sockaddr_in src;
     int src_len = sizeof(src);
     char *buffer = malloc(65536);
-    if (!buffer) return 1;
+    if (!buffer) {
+        fprintf(stderr, "Memory allocation failed\n");
+        return 1;
+    }
 
     if (WSAStartup(MAKEWORD(2,2), &wsa) != 0) {
         fprintf(stderr, "WSAStartup failed\n");
+        free(buffer);
         return 1;
     }
 
     sock = socket(AF_INET, SOCK_RAW, IPPROTO_ICMP);
-    // … error checks …
+    if (sock == INVALID_SOCKET) {
+        fprintf(stderr, "Socket creation failed: %d\n", WSAGetLastError());
+        WSACleanup();
+        free(buffer);
+        return 1;
+    }
+
+    printf("Listening for ICMP packets...\n");
 
     while (1) {
-        int buflen = recvfrom(sock, buffer, 65536, 0,
-                              (struct sockaddr*)&src, &src_len);
-        if (buflen == SOCKET_ERROR) break;
+        int buflen = recvfrom(sock, buffer, 65536, 0, (struct sockaddr*)&src, &src_len);
+        if (buflen == SOCKET_ERROR) {
+            fprintf(stderr, "recvfrom failed: %d\n", WSAGetLastError());
+            break;
+        }
 
         IPHeader *ip = (IPHeader*)buffer;
         if (ip->protocol != IPPROTO_ICMP) continue;
 
-        ICMPHeader *icmp = (ICMPHeader*)(buffer + ip->ihl*4);
-        if (icmp->type == 8 || icmp->type == 0) {
-            struct in_addr addr;
-            addr.s_addr = ip->saddr;
-            char src_ip[INET_ADDRSTRLEN];
-            if (inet_ntop(AF_INET, &addr, src_ip, sizeof(src_ip)))
-                printf("ICMP from %s\n", src_ip);
-            // … payload parsing …
+        ICMPHeader *icmp = (ICMPHeader*)(buffer + ip->ihl * 4);
+        struct in_addr addr;
+        addr.s_addr = ip->saddr;
+
+        char src_ip[INET_ADDRSTRLEN];
+        if (!inet_ntop(AF_INET, &addr, src_ip, sizeof(src_ip))) {
+            fprintf(stderr, "inet_ntop failed\n");
+            continue;
+        }
+
+        printf("ICMP Packet from %s\n", src_ip);
+        printf("  Type: %d\n", icmp->type);
+        printf("  Code: %d\n", icmp->code);
+        printf("  ID: %d\n", ntohs(icmp->id));
+        printf("  Sequence: %d\n", ntohs(icmp->seq));
+
+        if (buflen > (int)(ip->ihl * 4 + sizeof(ICMPHeader))) {
+            printf("  Payload: ");
+            unsigned char *payload = (unsigned char*)(buffer + ip->ihl * 4 + sizeof(ICMPHeader));
+            int payload_len = buflen - (ip->ihl * 4 + sizeof(ICMPHeader));
+            for (int i = 0; i < payload_len; i++) {
+                printf("%02x ", payload[i]);
+            }
+            printf("\n");
         }
     }
 
