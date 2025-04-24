@@ -56,6 +56,29 @@ int main() {
         return 1;
     }
 
+    // Set socket options
+    int rcvbuf_size = 65536;
+    if (setsockopt(sock, SOL_SOCKET, SO_RCVBUF, (char*)&rcvbuf_size, sizeof(rcvbuf_size)) == SOCKET_ERROR) {
+        fprintf(stderr, "setsockopt failed: %d\n", WSAGetLastError());
+        closesocket(sock);
+        WSACleanup();
+        free(buffer);
+        return 1;
+    }
+
+    // Optional: Bind the socket to a specific interface
+    struct sockaddr_in bind_addr = {0};
+    bind_addr.sin_family = AF_INET;
+    bind_addr.sin_addr.s_addr = INADDR_ANY; // Listen on all interfaces
+    bind_addr.sin_port = 0; // Not used for raw sockets
+    if (bind(sock, (struct sockaddr*)&bind_addr, sizeof(bind_addr)) == SOCKET_ERROR) {
+        fprintf(stderr, "Socket bind failed: %d\n", WSAGetLastError());
+        closesocket(sock);
+        WSACleanup();
+        free(buffer);
+        return 1;
+    }
+
     printf("Listening for ICMP packets...\n");
 
     while (1) {
